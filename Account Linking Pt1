@@ -1,0 +1,105 @@
+/**
+* Handler that will be called during the execution of a PostLogin flow.
+*
+* @param {Event} event - Details about the user and the context in which they are logging in.
+* @param {PostLoginAPI} api - Interface whose methods can be used to change the behavior of the login.
+*/
+  const FORM_ID = 'ap_bK9M3p8NSqBM57FxxFbfRv';
+  const interactive_login = new RegExp('^oidc-');
+
+  async function checkForExistingAccount(event, api, email) {
+    //console.log(`linking ${event.user.user_id} under ${primary_sub}`);
+
+    const {ManagementClient, AuthenticationClient} = require('auth0');
+
+    const domain = event?.secrets?.domain || event.request?.hostname;
+
+    let {value: token} = api.cache.get('management-token') || {};
+
+    if (!token) {
+        const {clientId, clientSecret} = event.secrets || {};
+
+        const cc = new AuthenticationClient({domain, clientId, clientSecret});
+
+        try {
+            const {data} = await cc.oauth.clientCredentialsGrant({audience: `https://${domain}/api/v2/`});
+            token = data?.access_token;
+
+            if (!token) {
+                console.log('failed get api v2 cc token');
+                return;
+            }
+            console.log('cache MIS m2m token!');
+
+            // const result = api.cache.set('management-token', token, {ttl: data.expires_in * 1000});
+
+            // if (result?.type === 'error') {
+            //     console.log('failed to set the token in the cache with error code', result.code);
+            // }
+        } catch (err) {
+            console.log('failed calling cc grant', err);
+            return;
+        }
+    }
+
+    //console.log(`m2m token: ${token}`);
+
+    const client = new ManagementClient({domain, token});
+
+    try {
+        return await client.usersByEmail.getByEmail({email: email});
+    } catch (err) {
+        console.log(err);
+        return;
+    }
+
+  
+}
+
+exports.onExecutePostLogin = async (event, api) => {
+
+  const protocol = event?.transaction?.protocol || 'unknown';
+
+  if (!interactive_login.test(protocol)) {
+      return;
+  }
+  console.log(event.request.query);
+  if(event.request.query.linking) {
+    console.log("skipping as already in linking");
+    return;
+  }
+
+  var existingUsers = await checkForExistingAccount(event, api, event.user.email);
+  existingUsers = existingUsers.data;
+  existingUsers = existingUsers.filter((t) => t.user_id !=  event.user.user_id );
+
+  // remove the current user
+  if (existingUsers.length > 0) {
+
+    const contextToken = api.redirect.encodeToken({
+      secret: event.secrets.SHARED_CONTEXT_TOKEN_SECRET,
+      expiresInSeconds: 600,
+      payload: {
+        user_id: event.user.user_id,
+        email: event.user.email,
+        target_user_id: existingUsers[0].user_id,
+        target_username: existingUsers[0].username || existingUsers[0].email || existingUsers[0].phone_number,
+        target_connection: existingUsers[0].identities[0].connection,
+        target_provider: existingUsers[0].identities[0].provider
+      }
+    });
+
+    api.redirect.sendUserTo(`form://${FORM_ID}`, {
+      query: { context_token: contextToken }
+    });
+  } else {
+    console.log("No matching users");
+  }
+}
+
+exports.onContinuePostLogin = async (event, api) => {
+  console.log(event);
+}
+
+
+
