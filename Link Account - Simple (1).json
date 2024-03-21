@@ -1,0 +1,264 @@
+{
+  "version": "3.0.0",
+  "form": {
+    "name": "Link Account - Simple",
+    "description": null,
+    "messages": {
+      "custom": {},
+      "errors": {}
+    },
+    "languages": {
+      "default": null,
+      "primary": "en"
+    },
+    "translations": {},
+    "start": {
+      "nextNode": "flow_xMyi",
+      "coordinates": {
+        "x": -79,
+        "y": -88
+      },
+      "hiddenFields": [
+        {
+          "key": "state",
+          "value": null
+        },
+        {
+          "key": "context_token",
+          "value": null
+        }
+      ]
+    },
+    "nodes": [
+      {
+        "id": "step_nndF",
+        "type": "STEP",
+        "alias": "New step",
+        "config": {
+          "nextNode": "flow_fY6j",
+          "components": [
+            {
+              "id": "rich_text_YYP6",
+              "type": "RICH_TEXT",
+              "config": {
+                "content": "<h2>Link your existing account?</h2><p>We found an existing account with {{state.email}} : {{state.target_user_id}} in {{state.target_connection}} ({{state.target_provider}} )</p><p>Would you like to link the account to keep your existing order history?</p>"
+              },
+              "category": "BLOCK"
+            },
+            {
+              "id": "next_button_aAUy",
+              "type": "NEXT_BUTTON",
+              "config": {
+                "text": "Link my account"
+              },
+              "category": "BLOCK"
+            },
+            {
+              "id": "divider_iR0h",
+              "type": "DIVIDER",
+              "config": {
+                "text": null
+              },
+              "category": "BLOCK"
+            },
+            {
+              "id": "jump_button_Dfsx",
+              "type": "JUMP_BUTTON",
+              "config": {
+                "text": "Skip this step",
+                "style": {
+                  "backgroundColor": "#808080"
+                },
+                "stepId": "$ending"
+              },
+              "category": "BLOCK"
+            }
+          ]
+        },
+        "coordinates": {
+          "x": 867,
+          "y": -192
+        }
+      },
+      {
+        "id": "flow_fY6j",
+        "type": "FLOW",
+        "alias": "New flow",
+        "config": {
+          "flowId": "#FLOW-1#",
+          "nextNode": "$ending"
+        },
+        "coordinates": {
+          "x": 1585,
+          "y": 53
+        }
+      },
+      {
+        "id": "flow_xMyi",
+        "type": "FLOW",
+        "alias": "getUser",
+        "config": {
+          "flowId": "#FLOW-2#",
+          "nextNode": "step_nndF"
+        },
+        "coordinates": {
+          "x": 140,
+          "y": -126
+        }
+      }
+    ],
+    "ending": {
+      "content": null,
+      "redirection": null,
+      "callback": null,
+      "afterSubmit": {
+        "email": null,
+        "flowId": null
+      },
+      "coordinates": {
+        "x": 941,
+        "y": 732
+      },
+      "resumeFlow": true
+    },
+    "social": [],
+    "style": {
+      "css": null,
+      "theme": "ROUND",
+      "version": "MODERN"
+    },
+    "tags": []
+  },
+  "flows": {
+    "#FLOW-2#": {
+      "name": "GetTokenDetails",
+      "description": null,
+      "actions": [
+        {
+          "id": "verifyJwt",
+          "type": "JWT",
+          "alias": "verifyJwt",
+          "notes": null,
+          "action": "VERIFY_SIGNATURE",
+          "params": {
+            "token": "{{input.body.context_token}}",
+            "issuer": null,
+            "audience": null,
+            "connectionId": "#CONN-1#"
+          },
+          "allowFailure": false
+        },
+        {
+          "id": "ifThenCondition_3303",
+          "type": "FLOW",
+          "alias": "Verify session_token",
+          "notes": null,
+          "action": "BOOLEAN_CONDITION",
+          "params": {
+            "then": [
+              {
+                "id": "storeData",
+                "type": "FLOW",
+                "alias": "storeData",
+                "notes": null,
+                "action": "STORE_STATE",
+                "params": {
+                  "data": {
+                    "email": "{{verifyJwt.payload.email}}",
+                    "user_id": "{{verifyJwt.payload.user_id}}",
+                    "target_user_id": "{{verifyJwt.payload.target_user_id}}",
+                    "target_provider": "{{verifyJwt.payload.target_provider}}",
+                    "target_username": "{{verifyJwt.payload.target_username}}",
+                    "target_connection": "{{verifyJwt.payload.target_connection}}"
+                  }
+                },
+                "allowFailure": false
+              }
+            ],
+            "evaluate": {
+              "operands": [
+                {
+                  "operands": [
+                    "{{verifyJwt.valid}}",
+                    true
+                  ],
+                  "operator": "EQ"
+                }
+              ],
+              "operator": "AND"
+            },
+            "otherwise": [
+              {
+                "id": "showErrorMessage_KZVs",
+                "type": "FLOW",
+                "alias": "Invalid session_token",
+                "notes": null,
+                "action": "ERROR_MESSAGE",
+                "params": {
+                  "message": "We're sorry but your session_token is not valid."
+                },
+                "allowFailure": false
+              }
+            ]
+          },
+          "allowFailure": false
+        }
+      ],
+      "triggers": {
+        "webhook": {
+          "secret": null,
+          "enabled": false
+        }
+      },
+      "synchronous": true,
+      "security": {
+        "rateLimits": []
+      }
+    },
+    "#FLOW-1#": {
+      "name": "set_meta",
+      "description": null,
+      "actions": [
+        {
+          "id": "updateuser",
+          "type": "AUTH0",
+          "alias": null,
+          "notes": null,
+          "action": "UPDATE_USER",
+          "params": {
+            "userId": "{{state.user_id}}",
+            "changes": {
+              "app_metadata": {
+                "link": "{{state.target_provider}}|{{state.target_connection}}|{{state.target_username}}"
+              }
+            },
+            "connectionId": "#CONN-2#"
+          },
+          "allowFailure": false
+        }
+      ],
+      "triggers": {
+        "webhook": {
+          "secret": null,
+          "enabled": false
+        }
+      },
+      "synchronous": true,
+      "security": {
+        "rateLimits": []
+      }
+    }
+  },
+  "connections": {
+    "#CONN-1#": {
+      "id": "ac_2YMK6vQMqHmjZj39gGsjKo",
+      "appId": "JWT",
+      "name": "JWT_Login_flow"
+    },
+    "#CONN-2#": {
+      "id": "ac_epYn2ZNUr5yCkPYTUszBPp",
+      "appId": "AUTH0",
+      "name": "Auth0M2M"
+    }
+  }
+}
